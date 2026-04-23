@@ -48,6 +48,7 @@ const REAL_IMAGES = {
   tradingFloor: '/images/psx-trading-floor.jpg',
   marketCity: '/images/karachi-finance.jpg',
   analytics: '/images/market-dashboard.jpg',
+  lailaAvatar: '/images/laila-avatar.avif',
 }
 
 const seedCompanies = [
@@ -636,7 +637,9 @@ function App() {
         </article>
 
         <article className="card avatar-card">
-          <div className="avatar">🧠</div>
+          <div className="avatar">
+            <img src={REAL_IMAGES.lailaAvatar} alt="Laila virtual broker portrait" />
+          </div>
           <div>
             <h2>Laila · GenZ Avatar Analyst</h2>
             <p>{avatarInsight}</p>
