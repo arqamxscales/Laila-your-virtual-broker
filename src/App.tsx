@@ -44,11 +44,11 @@ const DEMO_USER = {
 const APP_NAME = 'Laila-Your-Virtual-Broker'
 
 const REAL_IMAGES = {
-  loginHero: '/images/karachi-finance.jpg',
-  tradingFloor: '/images/psx-trading-floor.jpg',
-  marketCity: '/images/karachi-finance.jpg',
-  analytics: '/images/market-dashboard.jpg',
-  lailaAvatar: '/images/laila-avatar.avif',
+  loginHero: '/images/karachi-finance.jpeg',
+  tradingFloor: '/images/psx-trading-floor.webp',
+  marketCity: '/images/karachi-finance.jpeg',
+  analytics: '/images/market-dashboard.png',
+  lailaAvatar: '/images/laila-avatar.jpeg',
 }
 
 const seedCompanies = [
