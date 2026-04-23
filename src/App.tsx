@@ -51,24 +51,6 @@ const REAL_IMAGES = {
   lailaAvatar: '/images/laila-avatar.jpeg',
 }
 
-const seedCompanies = [
-  { symbol: 'HBL', name: 'Habib Bank Limited', sector: 'Commercial Banks' },
-  { symbol: 'UBL', name: 'United Bank Limited', sector: 'Commercial Banks' },
-  { symbol: 'MCB', name: 'MCB Bank Limited', sector: 'Commercial Banks' },
-  { symbol: 'OGDC', name: 'Oil & Gas Development Company', sector: 'Oil & Gas Exploration' },
-  { symbol: 'PPL', name: 'Pakistan Petroleum Limited', sector: 'Oil & Gas Exploration' },
-  { symbol: 'POL', name: 'Pakistan Oilfields', sector: 'Oil & Gas Exploration' },
-  { symbol: 'PSO', name: 'Pakistan State Oil', sector: 'Oil & Gas Marketing' },
-  { symbol: 'LUCK', name: 'Lucky Cement', sector: 'Cement' },
-  { symbol: 'FCCL', name: 'Fauji Cement', sector: 'Cement' },
-  { symbol: 'EFERT', name: 'Engro Fertilizers', sector: 'Fertilizer' },
-  { symbol: 'ENGRO', name: 'Engro Corporation', sector: 'Chemical' },
-  { symbol: 'MARI', name: 'Mari Energies', sector: 'Oil & Gas Exploration' },
-  { symbol: 'SYS', name: 'Systems Limited', sector: 'Technology & Communication' },
-  { symbol: 'TRG', name: 'TRG Pakistan', sector: 'Technology & Communication' },
-  { symbol: 'FFC', name: 'Fauji Fertilizer Company', sector: 'Fertilizer' },
-]
-
 const upcomingIPOs = [
   { name: 'GenZ Digital Securities', expected: 'Q3 2026', size: 'PKR 3.2B', sector: 'FinTech Services' },
   { name: 'Pak Green Hydrogen Ltd', expected: 'Q4 2026', size: 'PKR 6.1B', sector: 'Renewable Energy' },
@@ -90,17 +72,6 @@ const indexSnapshots: IndexSnapshot[] = [
   { index: 'ALLSHR', level: 52683, change: 0.61 },
 ]
 
-const generateStocks = (): Stock[] => {
-  return seedCompanies.map((c, i) => ({
-    ...c,
-    price: +(120 + i * 9.25).toFixed(2),
-    change: +((i % 2 === 0 ? 1 : -1) * (0.3 + (i % 5) * 0.21)).toFixed(2),
-    volume: 120_000 + i * 22_000,
-    marketCapB: +(35 + i * 4.8).toFixed(1),
-    pe: +(7 + (i % 9) * 1.5).toFixed(1),
-  }))
-}
-
 const formatMoney = (n: number) => new Intl.NumberFormat('en-PK').format(Math.round(n))
 const parseNumber = (value: string) => Number(value.replace(/,/g, '').replace(/[^0-9.+-]/g, '')) || 0
 
@@ -110,7 +81,7 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [loginError, setLoginError] = useState('')
 
-  const [stocks, setStocks] = useState<Stock[]>(() => generateStocks())
+  const [stocks, setStocks] = useState<Stock[]>([])
   const [selectedSector, setSelectedSector] = useState('All PSX Sectors')
   const [search, setSearch] = useState('')
   const [chatInput, setChatInput] = useState('')
@@ -184,11 +155,14 @@ function App() {
         throw new Error('PSX endpoints unavailable')
       }
 
-      const symbols = (await symbolsRes.json()) as Array<{
+      const symbolsRaw = (await symbolsRes.json()) as Array<{
         symbol: string
         name: string
         sectorName: string
+        isETF?: boolean
+        isDebt?: boolean
       }>
+      const symbols = symbolsRaw.filter((s) => !s.isDebt && !s.isETF && /^[A-Z]{2,4}$/.test(s.symbol))
       const topSymbols = (await topSymbolsRes.json()) as Array<{ symbol: string; volume: number }>
 
       const symbolMeta = new Map(symbols.map((s) => [s.symbol, s]))
