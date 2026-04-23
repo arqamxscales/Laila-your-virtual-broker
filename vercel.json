@@ -1,12 +1,7 @@
 {
-  "rewrites": [
-    {
-      "source": "/api/psx/:path*",
-      "destination": "https://dps.psx.com.pk/:path*"
-    },
-    {
-      "source": "/api/news/:path*",
-      "destination": "https://api.gdeltproject.org/:path*"
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs20.x"
     }
-  ]
+  }
 }
