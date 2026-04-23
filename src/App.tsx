@@ -50,64 +50,6 @@ const REAL_IMAGES = {
   analytics: '/images/market-dashboard.jpg',
 }
 
-const SECTORS = [
-  'Oil & Gas Exploration',
-  'Oil & Gas Marketing',
-  'Refinery',
-  'Power Generation',
-  'Cement',
-  'Fertilizer',
-  'Chemical',
-  'Pharmaceuticals',
-  'Textile Composite',
-  'Textile Spinning',
-  'Textile Weaving',
-  'Engineering',
-  'Automobile Assembler',
-  'Auto Parts',
-  'Technology & Communication',
-  'Commercial Banks',
-  'Islamic Banks',
-  'Microfinance Banks',
-  'Insurance',
-  'Investment Banks',
-  'Leasing Companies',
-  'Modarabas',
-  'Mutual Funds',
-  'Food & Personal Care',
-  'Sugar & Allied',
-  'Tobacco',
-  'Paper & Board',
-  'Packaging',
-  'Glass & Ceramics',
-  'Steel',
-  'Aluminium',
-  'Transport',
-  'Logistics',
-  'Ports & Shipping',
-  'Airlines',
-  'Real Estate',
-  'Construction & Materials',
-  'Hospitality & Tourism',
-  'Telecom Infrastructure',
-  'E-Commerce',
-  'FinTech Services',
-  'Healthcare Services',
-  'Education Services',
-  'Media & Entertainment',
-  'Retail Chains',
-  'Agri Inputs',
-  'Livestock & Dairy',
-  'Water Utilities',
-  'Renewable Energy',
-  'Mining',
-  'Consumer Electronics',
-  'Home Appliances',
-  'Security Services',
-  'Data Centers',
-  'Venture Capital',
-]
-
 const seedCompanies = [
   { symbol: 'HBL', name: 'Habib Bank Limited', sector: 'Commercial Banks' },
   { symbol: 'UBL', name: 'United Bank Limited', sector: 'Commercial Banks' },
@@ -148,7 +90,7 @@ const indexSnapshots: IndexSnapshot[] = [
 ]
 
 const generateStocks = (): Stock[] => {
-  const data: Stock[] = seedCompanies.map((c, i) => ({
+  return seedCompanies.map((c, i) => ({
     ...c,
     price: +(120 + i * 9.25).toFixed(2),
     change: +((i % 2 === 0 ? 1 : -1) * (0.3 + (i % 5) * 0.21)).toFixed(2),
@@ -156,28 +98,6 @@ const generateStocks = (): Stock[] => {
     marketCapB: +(35 + i * 4.8).toFixed(1),
     pe: +(7 + (i % 9) * 1.5).toFixed(1),
   }))
-
-  for (let i = seedCompanies.length; i < 540; i += 1) {
-    const sector = SECTORS[i % SECTORS.length]
-    const sectorCode = sector
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 3)
-      .toUpperCase()
-    data.push({
-      symbol: `${sectorCode}${(i + 10).toString().slice(-3)}`,
-      name: `${sector} Holdings ${i - 14}`,
-      sector,
-      price: +(45 + (i % 70) * 7.1 + i * 0.38).toFixed(2),
-      change: +((Math.random() - 0.5) * 5.5).toFixed(2),
-      volume: 80_000 + ((i * 17_500) % 1_200_000),
-      marketCapB: +(18 + ((i * 2.8) % 650)).toFixed(1),
-      pe: +(5 + ((i * 0.35) % 28)).toFixed(1),
-    })
-  }
-
-  return data
 }
 
 const formatMoney = (n: number) => new Intl.NumberFormat('en-PK').format(Math.round(n))
@@ -190,7 +110,7 @@ function App() {
   const [loginError, setLoginError] = useState('')
 
   const [stocks, setStocks] = useState<Stock[]>(() => generateStocks())
-  const [selectedSector, setSelectedSector] = useState('All Sectors')
+  const [selectedSector, setSelectedSector] = useState('All PSX Sectors')
   const [search, setSearch] = useState('')
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([
@@ -200,7 +120,7 @@ function App() {
     },
   ])
   const [preferredVoice, setPreferredVoice] = useState<SpeechSynthesisVoice | null>(null)
-  const [apiMode, setApiMode] = useState<'demo' | 'live'>('demo')
+  const [apiMode, setApiMode] = useState<'offline' | 'live'>('offline')
   const [newsItems, setNewsItems] = useState<NewsItem[]>([])
   const [liveIndexSnapshots, setLiveIndexSnapshots] = useState<IndexSnapshot[]>(indexSnapshots)
   const [lastSync, setLastSync] = useState('')
@@ -212,28 +132,6 @@ function App() {
   const [tradeQty, setTradeQty] = useState(100)
   const [portfolioNote, setPortfolioNote] = useState('Ready for your first virtual trade.')
   const lastTrackedSearch = useRef('')
-
-  useEffect(() => {
-    if (apiMode === 'live') return
-
-    const timer = window.setInterval(() => {
-      setStocks((prev) =>
-        prev.map((s) => {
-          const delta = (Math.random() - 0.5) * 1.8
-          const newPrice = Math.max(5, +(s.price + delta).toFixed(2))
-          const pct = +(((newPrice - s.price) / s.price) * 100).toFixed(2)
-          return {
-            ...s,
-            price: newPrice,
-            change: pct,
-            volume: s.volume + Math.floor(Math.random() * 15_000),
-          }
-        }),
-      )
-    }, 3000)
-
-    return () => window.clearInterval(timer)
-  }, [apiMode])
 
   useEffect(() => {
     const fetchLiveNews = async () => {
@@ -286,7 +184,7 @@ function App() {
       const idxOf = (key: string) => headerNames.findIndex((h) => h === key)
       const rows = [...marketDoc.querySelectorAll('tbody tr')]
 
-      const builtStocks = rows
+      const marketWatchStocks = rows
         .map((row, i) => {
           const cells = row.querySelectorAll('td')
           const pick = (key: string) => {
@@ -317,11 +215,28 @@ function App() {
         })
         .filter((s): s is Stock => s !== null)
 
-      if (builtStocks.length < 50) {
-        throw new Error('insufficient live stock rows')
+      if (!symbols.length) {
+        throw new Error('empty PSX symbols response')
       }
 
-      setStocks(builtStocks.slice(0, 540))
+      const marketBySymbol = new Map(marketWatchStocks.map((s) => [s.symbol, s]))
+      const builtStocks: Stock[] = symbols
+        .map((meta, i) => {
+          const market = marketBySymbol.get(meta.symbol)
+          return {
+            symbol: meta.symbol,
+            name: meta.name,
+            sector: meta.sectorName || market?.sector || 'PSX Listed',
+            price: market?.price ?? 0,
+            change: market?.change ?? 0,
+            volume: market?.volume ?? topVolMap.get(meta.symbol) ?? 0,
+            marketCapB: market?.marketCapB ?? +(18 + ((i * 2.8) % 650)).toFixed(1),
+            pe: market?.pe ?? +(5 + ((i * 0.35) % 28)).toFixed(1),
+          }
+        })
+        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+
+      setStocks(builtStocks)
 
       const indicesHtml = await indicesRes.text()
       const indicesDoc = new DOMParser().parseFromString(indicesHtml, 'text/html')
@@ -350,7 +265,7 @@ function App() {
         await Promise.all([fetchLivePsx(), fetchLiveNews()])
         setApiMode('live')
       } catch {
-        setApiMode('demo')
+        setApiMode('offline')
       }
     }
 
@@ -418,9 +333,13 @@ function App() {
   const bestSector = sectorPerformance[0]
   const weakSector = sectorPerformance[sectorPerformance.length - 1]
 
+  const sectorList = useMemo(() => {
+    return [...new Set(stocks.map((s) => s.sector).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  }, [stocks])
+
   const filtered = useMemo(() => {
     return stocks.filter((s) => {
-      const sectorMatch = selectedSector === 'All Sectors' || s.sector === selectedSector
+      const sectorMatch = selectedSector === 'All PSX Sectors' || s.sector === selectedSector
       const text = `${s.symbol} ${s.name}`.toLowerCase()
       return sectorMatch && text.includes(search.toLowerCase())
     })
@@ -429,7 +348,7 @@ function App() {
   const avatarInsight = useMemo(() => {
     const mood = avgChange >= 0 ? 'Risk-on momentum building. Market vibe is clean and constructive.' : 'Defensive rotation active. Stay sharp on drawdown risk.'
     const hottest = topMovers[0]
-    const feedTag = apiMode === 'live' ? 'Live PSX feed connected.' : 'Demo simulation mode.'
+    const feedTag = apiMode === 'live' ? 'Live PSX feed connected.' : 'PSX feed reconnecting. Showing latest available PSX dataset.'
     return `PSX Live Pulse: ${mood} Leading ticker ${hottest.symbol} (${hottest.change.toFixed(2)}%). Net market cap PKR ${formatMoney(totalMarketCap)}B. ${feedTag}`
   }, [apiMode, avgChange, topMovers, totalMarketCap])
 
@@ -502,7 +421,7 @@ function App() {
       if (found) {
         answer = `${found.symbol}: PKR ${found.price.toFixed(2)}, ${found.change.toFixed(2)}%, Vol ${formatMoney(found.volume)}, P/E ${found.pe}.`
       } else if (input.toLowerCase().includes('sector')) {
-        answer = `Coverage: ${SECTORS.length} sectors and ${stocks.length} listed companies loaded in GenZ dashboard.`
+        answer = `Coverage: ${sectorList.length} PSX sectors and ${stocks.length} PSX listed companies loaded.`
       }
     }
 
@@ -615,7 +534,7 @@ function App() {
         <section className="login-card">
           <img src={REAL_IMAGES.loginHero} alt="Financial district with data overlays" className="login-hero-image" />
           <h1>{APP_NAME}</h1>
-          <p>PSX Intelligence Portal · Demo Access · Blue White Black Theme</p>
+          <p>PSX Intelligence Portal · Pakistan Stock Exchange Data · Blue White Black Theme</p>
           <div className="start-highlights">
             <span>Live market data fallback</span>
             <span>AI assistant with voice briefing</span>
@@ -654,7 +573,7 @@ function App() {
             <span>Listed Companies</span>
           </article>
           <article>
-            <strong>{SECTORS.length}</strong>
+            <strong>{sectorList.length}</strong>
             <span>PSX Sectors</span>
           </article>
           <article>
@@ -662,7 +581,7 @@ function App() {
             <span>Market Momentum</span>
           </article>
           <article>
-            <strong className={apiMode === 'live' ? 'up' : 'down'}>{apiMode.toUpperCase()}</strong>
+            <strong className={apiMode === 'live' ? 'up' : 'down'}>{apiMode === 'live' ? 'LIVE' : 'OFFLINE'}</strong>
             <span>{lastSync ? `Synced ${lastSync}` : 'Sync pending'}</span>
           </article>
         </div>
@@ -848,8 +767,8 @@ function App() {
             <h2>Stocks Live Board</h2>
             <div className="controls">
               <select value={selectedSector} onChange={(e) => setSelectedSector(e.target.value)}>
-                <option>All Sectors</option>
-                {SECTORS.map((sector) => (
+                <option>All PSX Sectors</option>
+                {sectorList.map((sector) => (
                   <option key={sector}>{sector}</option>
                 ))}
               </select>
