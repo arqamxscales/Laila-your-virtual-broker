@@ -46,6 +46,26 @@ h2 {
   color: #d3e3ff;
 }
 
+.soundbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid rgba(130, 176, 255, 0.28);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  background: rgba(7, 19, 43, 0.55);
+}
+
+.soundbar span {
+  font-size: 0.82rem;
+  color: #d7e5ff;
+}
+
+.soundbar input[type='range'] {
+  width: min(220px, 55vw);
+}
+
 .ticker-strip {
   overflow: hidden;
   border: 1px solid rgba(138, 180, 255, 0.45);
@@ -533,6 +553,11 @@ td {
 
   .trade-controls {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .soundbar {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .portfolio-list li {

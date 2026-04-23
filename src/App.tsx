@@ -132,7 +132,12 @@ function App() {
   const [tradeSymbol, setTradeSymbol] = useState('HBL')
   const [tradeQty, setTradeQty] = useState(100)
   const [portfolioNote, setPortfolioNote] = useState('Ready for your first virtual trade.')
+  const [beatOn, setBeatOn] = useState(false)
+  const [beatBpm, setBeatBpm] = useState(62)
   const lastTrackedSearch = useRef('')
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const beatTimerRef = useRef<number | null>(null)
+  const beatStepRef = useRef(0)
 
   useEffect(() => {
     const fetchLiveNews = async () => {
@@ -371,6 +376,88 @@ function App() {
     setAnalytics((prev) => ({ ...prev, briefings: prev.briefings + 1 }))
   }
 
+  const triggerBeat = (ctx: AudioContext, when: number, accent: boolean) => {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(accent ? 74 : 54, when)
+
+    gain.gain.setValueAtTime(0.0001, when)
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.12 : 0.08, when + 0.005)
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.24)
+
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start(when)
+    osc.stop(when + 0.26)
+  }
+
+  const stopBeat = () => {
+    if (beatTimerRef.current) {
+      window.clearInterval(beatTimerRef.current)
+      beatTimerRef.current = null
+    }
+    audioCtxRef.current?.suspend()
+    setBeatOn(false)
+  }
+
+  const startBeat = async () => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        if (!Ctx) return
+        audioCtxRef.current = new Ctx()
+      }
+
+      const ctx = audioCtxRef.current
+      await ctx.resume()
+
+      if (beatTimerRef.current) {
+        window.clearInterval(beatTimerRef.current)
+      }
+
+      beatStepRef.current = 0
+      beatTimerRef.current = window.setInterval(() => {
+        const now = ctx.currentTime
+        const isAccent = beatStepRef.current % 4 === 0
+        triggerBeat(ctx, now + 0.02, isAccent)
+        beatStepRef.current += 1
+
+        if (beatStepRef.current >= 16) {
+          beatStepRef.current = 0
+        }
+      }, Math.round((60 / Math.max(44, Math.min(90, beatBpm))) * 1000))
+
+      setBeatOn(true)
+    } catch {
+      setBeatOn(false)
+    }
+  }
+
+  const toggleBeat = () => {
+    if (beatOn) {
+      stopBeat()
+      return
+    }
+    void startBeat()
+  }
+
+  useEffect(() => {
+    return () => {
+      if (beatTimerRef.current) {
+        window.clearInterval(beatTimerRef.current)
+      }
+      void audioCtxRef.current?.close()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!beatOn) return
+    stopBeat()
+    void startBeat()
+  }, [beatBpm])
+
   const onLogin = (e: FormEvent) => {
     e.preventDefault()
     if (email === DEMO_USER.email && password === DEMO_USER.password) {
@@ -396,10 +483,21 @@ function App() {
     const input = q.trim()
     if (!input) return
 
+    const lowerInput = input.toLowerCase()
+    const compare = input.match(/compare\s+([a-z0-9]+)\s+([a-z0-9]+)/i)
+
     let answer = 'I can help with ticker lookup, sector pulse, IPOs, and calculations. Try: calc 100000 120 136'
     const calc = input.match(/calc\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/i)
 
-    if (calc) {
+    if (lowerInput === 'help' || lowerInput === 'commands') {
+      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, beat on, beat off.'
+    } else if (lowerInput === 'beat on') {
+      void startBeat()
+      answer = 'Slow background beat enabled.'
+    } else if (lowerInput === 'beat off') {
+      stopBeat()
+      answer = 'Background beat stopped.'
+    } else if (calc) {
       const capital = Number(calc[1])
       const buy = Number(calc[2])
       const sell = Number(calc[3])
@@ -407,21 +505,45 @@ function App() {
       const pnl = +(shares * (sell - buy)).toFixed(2)
       const ret = +(((sell - buy) / buy) * 100).toFixed(2)
       answer = `Trade simulation: ${shares} shares, P/L PKR ${formatMoney(pnl)}, return ${ret}%.`
-    } else if (input.toLowerCase().includes('ipo')) {
+    } else if (compare) {
+      const a = stocks.find((s) => s.symbol.toLowerCase() === compare[1].toLowerCase())
+      const b = stocks.find((s) => s.symbol.toLowerCase() === compare[2].toLowerCase())
+      if (!a || !b) {
+        answer = 'Compare format: compare HBL UBL (both symbols must exist in PSX list).'
+      } else {
+        const leader = a.change >= b.change ? a : b
+        answer = `${a.symbol}: ${a.change.toFixed(2)}% @ ${a.price.toFixed(2)} | ${b.symbol}: ${b.change.toFixed(2)}% @ ${b.price.toFixed(2)}. Momentum leader: ${leader.symbol}.`
+      }
+    } else if (lowerInput.includes('ipo')) {
       answer = upcomingIPOs.map((i) => `${i.name} (${i.expected}, ${i.size})`).join(' | ')
-    } else if (input.toLowerCase().includes('forecast')) {
+    } else if (lowerInput.includes('forecast')) {
       answer = `AI signal: ${aiForecast.direction} for next session, confidence ${aiForecast.confidence.toFixed(0)}%. Keep stops tight and position sizing disciplined.`
-    } else if (input.toLowerCase().includes('risk')) {
+    } else if (lowerInput.includes('risk')) {
       answer = `Risk meter: volatility ${volatility.toFixed(2)}. Best sector ${bestSector.sector} (${bestSector.avg.toFixed(2)}%), weak zone ${weakSector.sector} (${weakSector.avg.toFixed(2)}%).`
-    } else if (input.toLowerCase().includes('kse')) {
+    } else if (lowerInput.includes('kse')) {
       answer = liveIndexSnapshots.map((i) => `${i.index} ${i.level.toLocaleString()} (${i.change.toFixed(2)}%)`).join(' | ')
-    } else if (input.toLowerCase().includes('news')) {
+    } else if (lowerInput.includes('news')) {
       answer = newsItems.length ? newsItems.slice(0, 3).map((n) => `${n.title} (${n.source})`).join(' | ') : 'Live news stream loading...'
+    } else if (lowerInput === 'gainers') {
+      answer = topMovers.slice(0, 5).map((m) => `${m.symbol} ${m.change.toFixed(2)}%`).join(' | ')
+    } else if (lowerInput === 'losers') {
+      answer = bottomMovers.slice(0, 5).map((m) => `${m.symbol} ${m.change.toFixed(2)}%`).join(' | ')
+    } else if (lowerInput === 'portfolio') {
+      answer = `Portfolio: Cash PKR ${formatMoney(portfolioCash)}, Holdings PKR ${formatMoney(portfolioValue)}, Equity PKR ${formatMoney(totalEquity)}, P/L PKR ${formatMoney(portfolioPnl)}.`
+    } else if (lowerInput.startsWith('sector ')) {
+      const sectorName = input.slice(7).trim().toLowerCase()
+      const sectorTop = stocks
+        .filter((s) => s.sector.toLowerCase().includes(sectorName))
+        .sort((a, b) => b.change - a.change)
+        .slice(0, 3)
+      answer = sectorTop.length
+        ? `Sector focus: ${sectorTop.map((s) => `${s.symbol} ${s.change.toFixed(2)}%`).join(' | ')}`
+        : 'No matching PSX sector found. Try: sector bank'
     } else {
-      const found = stocks.find((s) => s.symbol.toLowerCase() === input.toLowerCase())
+      const found = stocks.find((s) => s.symbol.toLowerCase() === lowerInput)
       if (found) {
         answer = `${found.symbol}: PKR ${found.price.toFixed(2)}, ${found.change.toFixed(2)}%, Vol ${formatMoney(found.volume)}, P/E ${found.pe}.`
-      } else if (input.toLowerCase().includes('sector')) {
+      } else if (lowerInput.includes('sector')) {
         answer = `Coverage: ${sectorList.length} PSX sectors and ${stocks.length} PSX listed companies loaded.`
       }
     }
@@ -587,6 +709,19 @@ function App() {
           </article>
         </div>
       </header>
+
+      <section className="soundbar">
+        <button type="button" onClick={toggleBeat}>{beatOn ? 'Stop Slow Beat' : 'Play Slow Beat'}</button>
+        <span>{beatOn ? `Background beat running · ${beatBpm} BPM` : 'Background beat is off'}</span>
+        <input
+          type="range"
+          min={44}
+          max={90}
+          value={beatBpm}
+          onChange={(e) => setBeatBpm(Number(e.target.value))}
+          aria-label="Background beat speed"
+        />
+      </section>
 
       <section className="ticker-strip" aria-label="Live Tickers">
         <div className="ticker-track">
@@ -858,7 +993,7 @@ function App() {
 
         <article className="card chatbot">
           <h2>AI Query Assistant</h2>
-          <p>Use ticker symbol, "IPO", "sector", "forecast", "risk", "kse", "news", or calc 100000 120 136</p>
+          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, kse, news, beat on/off, or calc 100000 120 136</p>
           <div className="chatbox">
             {messages.slice(-10).map((m, i) => (
               <div key={`${m.role}-${i}`} className={`msg ${m.role}`}>
