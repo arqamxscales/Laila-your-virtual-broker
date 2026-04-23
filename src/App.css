@@ -137,6 +137,73 @@ h2 {
   object-fit: cover;
 }
 
+.cv-avatar {
+  width: 78px;
+  height: 78px;
+  min-width: 78px;
+  position: relative;
+  transform-style: preserve-3d;
+  transform: perspective(420px)
+    rotateY(calc((var(--cv-motion, 0) - 0.15) * 18deg))
+    rotateX(calc((0.55 - var(--cv-light, 0.5)) * 11deg));
+  box-shadow:
+    0 0 calc(10px + var(--cv-light, 0.5) * 20px) rgba(76, 167, 255, 0.5),
+    0 12px 22px rgba(0, 0, 0, 0.35);
+  transition: transform 0.16s linear, box-shadow 0.22s ease;
+}
+
+.cv-avatar .avatar-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(133, 190, 255, 0.65);
+  box-shadow: 0 0 16px rgba(72, 169, 255, 0.46);
+  transform: translateZ(6px);
+  pointer-events: none;
+}
+
+.cv-avatar .avatar-mouth {
+  position: absolute;
+  width: 16px;
+  height: 7px;
+  left: 50%;
+  top: 66%;
+  transform: translate(-50%, -50%) translateZ(8px);
+  border-radius: 999px;
+  background: rgba(16, 20, 31, 0.75);
+  border: 1px solid rgba(162, 208, 255, 0.4);
+  transition: height 0.1s ease;
+}
+
+.cv-avatar.speaking .avatar-mouth {
+  animation: talkPulse 0.24s infinite ease-in-out;
+}
+
+@keyframes talkPulse {
+  0%,
+  100% {
+    height: 7px;
+  }
+  50% {
+    height: 13px;
+  }
+}
+
+.avatar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cv-video-hidden,
+.cv-canvas-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .hero-panel {
   grid-column: span 8;
   display: grid;

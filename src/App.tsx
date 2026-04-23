@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
 type Stock = {
@@ -132,12 +132,22 @@ function App() {
   const [tradeSymbol, setTradeSymbol] = useState('HBL')
   const [tradeQty, setTradeQty] = useState(100)
   const [portfolioNote, setPortfolioNote] = useState('Ready for your first virtual trade.')
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [cameraEnabled, setCameraEnabled] = useState(false)
+  const [cameraStatus, setCameraStatus] = useState('Camera off')
+  const [motionLevel, setMotionLevel] = useState(0)
+  const [lightLevel, setLightLevel] = useState(0.5)
   const [beatOn, setBeatOn] = useState(false)
   const [beatBpm, setBeatBpm] = useState(62)
   const lastTrackedSearch = useRef('')
   const audioCtxRef = useRef<AudioContext | null>(null)
   const beatTimerRef = useRef<number | null>(null)
   const beatStepRef = useRef(0)
+  const cvVideoRef = useRef<HTMLVideoElement | null>(null)
+  const cvCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const cvRafRef = useRef<number | null>(null)
+  const lastLumaRef = useRef<Float32Array | null>(null)
+  const cvStreamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
     const fetchLiveNews = async () => {
@@ -372,9 +382,131 @@ function App() {
     if (preferredVoice) utterance.voice = preferredVoice
     utterance.rate = 0.93
     utterance.pitch = 1.14
+    utterance.onstart = () => setIsSpeaking(true)
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
     window.speechSynthesis.speak(utterance)
     setAnalytics((prev) => ({ ...prev, briefings: prev.briefings + 1 }))
   }
+
+  useEffect(() => {
+    if (!cameraEnabled) {
+      if (cvRafRef.current) {
+        cancelAnimationFrame(cvRafRef.current)
+        cvRafRef.current = null
+      }
+      if (cvStreamRef.current) {
+        cvStreamRef.current.getTracks().forEach((t) => t.stop())
+        cvStreamRef.current = null
+      }
+      if (cvVideoRef.current) {
+        cvVideoRef.current.srcObject = null
+      }
+      lastLumaRef.current = null
+      setMotionLevel(0)
+      setCameraStatus('Camera off')
+      return
+    }
+
+    let cancelled = false
+
+    const startCv = async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setCameraStatus('Camera not supported')
+          setCameraEnabled(false)
+          return
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 320 },
+            height: { ideal: 240 },
+            facingMode: 'user',
+          },
+          audio: false,
+        })
+
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+
+        cvStreamRef.current = stream
+        const video = cvVideoRef.current
+        const canvas = cvCanvasRef.current
+        if (!video || !canvas) return
+
+        video.srcObject = stream
+        await video.play()
+        setCameraStatus('Computer vision active')
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        if (!ctx) return
+
+        const w = 48
+        const h = 36
+        canvas.width = w
+        canvas.height = h
+
+        const tick = () => {
+          if (!cvVideoRef.current || cvVideoRef.current.readyState < 2) {
+            cvRafRef.current = requestAnimationFrame(tick)
+            return
+          }
+
+          ctx.drawImage(video, 0, 0, w, h)
+          const frame = ctx.getImageData(0, 0, w, h).data
+
+          let lightSum = 0
+          let motionSum = 0
+          const totalPx = w * h
+          const luma = new Float32Array(totalPx)
+
+          for (let i = 0, p = 0; i < frame.length; i += 4, p += 1) {
+            const y = 0.2126 * frame[i] + 0.7152 * frame[i + 1] + 0.0722 * frame[i + 2]
+            luma[p] = y
+            lightSum += y
+            if (lastLumaRef.current) {
+              motionSum += Math.abs(y - lastLumaRef.current[p])
+            }
+          }
+
+          const avgLight = lightSum / (totalPx * 255)
+          const rawMotion = lastLumaRef.current ? motionSum / (totalPx * 255) : 0
+
+          setLightLevel((prev) => prev * 0.86 + avgLight * 0.14)
+          setMotionLevel((prev) => prev * 0.72 + Math.min(1, rawMotion * 8) * 0.28)
+          lastLumaRef.current = luma
+
+          cvRafRef.current = requestAnimationFrame(tick)
+        }
+
+        cvRafRef.current = requestAnimationFrame(tick)
+      } catch {
+        setCameraStatus('Camera permission denied')
+        setCameraEnabled(false)
+      }
+    }
+
+    void startCv()
+
+    return () => {
+      cancelled = true
+      if (cvRafRef.current) {
+        cancelAnimationFrame(cvRafRef.current)
+        cvRafRef.current = null
+      }
+      if (cvStreamRef.current) {
+        cvStreamRef.current.getTracks().forEach((t) => t.stop())
+        cvStreamRef.current = null
+      }
+      if (cvVideoRef.current) {
+        cvVideoRef.current.srcObject = null
+      }
+      lastLumaRef.current = null
+    }
+  }, [cameraEnabled])
 
   const triggerBeat = (ctx: AudioContext, when: number, accent: boolean) => {
     const osc = ctx.createOscillator()
@@ -651,6 +783,12 @@ function App() {
     analytics.chatQueries * 8 + analytics.stockSearches * 6 + analytics.trades * 12 + analytics.briefings * 5 + activeMinutes * 2,
   )
 
+  const avatarStyle = {
+    '--cv-motion': motionLevel.toFixed(3),
+    '--cv-light': lightLevel.toFixed(3),
+    '--cv-talk': isSpeaking ? '1' : '0',
+  } as CSSProperties
+
   if (!loggedIn) {
     return (
       <main className="login-wrap">
@@ -772,13 +910,23 @@ function App() {
         </article>
 
         <article className="card avatar-card">
-          <div className="avatar">
+          <div className={`avatar cv-avatar ${isSpeaking ? 'speaking' : ''}`} style={avatarStyle}>
             <img src={REAL_IMAGES.lailaAvatar} alt="Laila virtual broker portrait" />
+            <span className="avatar-ring" aria-hidden="true" />
+            <span className="avatar-mouth" aria-hidden="true" />
           </div>
           <div>
             <h2>Laila · GenZ Avatar Analyst</h2>
             <p>{avatarInsight}</p>
-            <button onClick={speakInsight}>Laila Live Briefing</button>
+            <div className="avatar-actions">
+              <button onClick={speakInsight}>Laila Live Briefing</button>
+              <button type="button" onClick={() => setCameraEnabled((v) => !v)}>
+                {cameraEnabled ? 'Disable CV Camera' : 'Enable CV Camera'}
+              </button>
+            </div>
+            <small>{cameraStatus}</small>
+            <video ref={cvVideoRef} className="cv-video-hidden" playsInline muted />
+            <canvas ref={cvCanvasRef} className="cv-canvas-hidden" />
           </div>
         </article>
 
