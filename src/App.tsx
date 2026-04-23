@@ -123,7 +123,7 @@ function App() {
   useEffect(() => {
     const fetchLiveNews = async () => {
       const q = encodeURIComponent('(Pakistan AND (economy OR inflation OR "stock exchange" OR KSE100 OR PSX))')
-      const url = `/api/news/api/v2/doc/doc?query=${q}&mode=ArtList&format=json&maxrecords=8&sort=datedesc`
+      const url = `/api/news-feed?query=${q}`
       const res = await fetch(url)
       if (!res.ok) throw new Error('news feed unavailable')
       const data = (await res.json()) as {
@@ -145,10 +145,10 @@ function App() {
 
     const fetchLivePsx = async () => {
       const [symbolsRes, marketWatchRes, indicesRes, topSymbolsRes] = await Promise.all([
-        fetch('/api/psx/symbols'),
-        fetch('/api/psx/market-watch'),
-        fetch('/api/psx/indices/'),
-        fetch('/api/psx/data/top-10-symbols'),
+        fetch('/api/psx-symbols'),
+        fetch('/api/psx-market-watch'),
+        fetch('/api/psx-indices'),
+        fetch('/api/psx-top-10-symbols'),
       ])
 
       if (!symbolsRes.ok || !marketWatchRes.ok || !indicesRes.ok || !topSymbolsRes.ok) {
