@@ -108,6 +108,8 @@ function App() {
   const [cameraStatus, setCameraStatus] = useState('Camera off')
   const [motionLevel, setMotionLevel] = useState(0)
   const [lightLevel, setLightLevel] = useState(0.5)
+  const [lastCvTickAt, setLastCvTickAt] = useState<number | null>(null)
+  const [voiceStatus, setVoiceStatus] = useState('Voice ready')
   const [beatOn, setBeatOn] = useState(false)
   const [beatBpm, setBeatBpm] = useState(62)
   const lastTrackedSearch = useRef('')
@@ -306,7 +308,7 @@ function App() {
   )
 
   const avgChange = useMemo(
-    () => stocks.reduce((sum, s) => sum + s.change, 0) / stocks.length,
+    () => (stocks.length ? stocks.reduce((sum, s) => sum + s.change, 0) / stocks.length : 0),
     [stocks],
   )
 
@@ -321,6 +323,7 @@ function App() {
   )
 
   const volatility = useMemo(() => {
+    if (!stocks.length) return 0
     const mean = avgChange
     const variance = stocks.reduce((acc, s) => acc + (s.change - mean) ** 2, 0) / stocks.length
     return Math.sqrt(variance)
@@ -357,7 +360,8 @@ function App() {
     const mood = avgChange >= 0 ? 'Risk-on momentum building. Market vibe is clean and constructive.' : 'Defensive rotation active. Stay sharp on drawdown risk.'
     const hottest = topMovers[0]
     const feedTag = apiMode === 'live' ? 'Live PSX feed connected.' : 'PSX feed reconnecting. Showing latest available PSX dataset.'
-    return `PSX Live Pulse: ${mood} Leading ticker ${hottest.symbol} (${hottest.change.toFixed(2)}%). Net market cap PKR ${formatMoney(totalMarketCap)}B. ${feedTag}`
+    const leader = hottest ? `${hottest.symbol} (${hottest.change.toFixed(2)}%)` : 'N/A'
+    return `PSX Live Pulse: ${mood} Leading ticker ${leader}. Net market cap PKR ${formatMoney(totalMarketCap)}B. ${feedTag}`
   }, [apiMode, avgChange, topMovers, totalMarketCap])
 
   const aiForecast = useMemo(() => {
@@ -368,15 +372,27 @@ function App() {
   }, [avgChange, volatility])
 
   const speakInsight = () => {
-    if (!('speechSynthesis' in window)) return
+    if (!('speechSynthesis' in window)) {
+      setVoiceStatus('Voice unavailable in this browser')
+      return
+    }
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(avatarInsight)
     if (preferredVoice) utterance.voice = preferredVoice
     utterance.rate = 0.93
     utterance.pitch = 1.14
-    utterance.onstart = () => setIsSpeaking(true)
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => setIsSpeaking(false)
+    utterance.onstart = () => {
+      setIsSpeaking(true)
+      setVoiceStatus('Speaking')
+    }
+    utterance.onend = () => {
+      setIsSpeaking(false)
+      setVoiceStatus('Voice ready')
+    }
+    utterance.onerror = () => {
+      setIsSpeaking(false)
+      setVoiceStatus('Voice error — check browser audio permissions')
+    }
     window.speechSynthesis.speak(utterance)
     setAnalytics((prev) => ({ ...prev, briefings: prev.briefings + 1 }))
   }
@@ -397,6 +413,7 @@ function App() {
       lastLumaRef.current = null
       setMotionLevel(0)
       setCameraStatus('Camera off')
+      setLastCvTickAt(null)
       return
     }
 
@@ -467,16 +484,24 @@ function App() {
           const avgLight = lightSum / (totalPx * 255)
           const rawMotion = lastLumaRef.current ? motionSum / (totalPx * 255) : 0
 
-          setLightLevel((prev) => prev * 0.86 + avgLight * 0.14)
-          setMotionLevel((prev) => prev * 0.72 + Math.min(1, rawMotion * 8) * 0.28)
+          setLightLevel((prev) => prev * 0.82 + avgLight * 0.18)
+          setMotionLevel((prev) => prev * 0.58 + Math.min(1, rawMotion * 14) * 0.42)
+          setLastCvTickAt(Date.now())
           lastLumaRef.current = luma
 
           cvRafRef.current = requestAnimationFrame(tick)
         }
 
         cvRafRef.current = requestAnimationFrame(tick)
-      } catch {
-        setCameraStatus('Camera permission denied')
+      } catch (error) {
+        const name = (error as { name?: string })?.name
+        if (name === 'NotAllowedError') {
+          setCameraStatus('Camera permission denied by browser')
+        } else if (name === 'NotFoundError') {
+          setCameraStatus('No camera device detected')
+        } else {
+          setCameraStatus('Camera failed to start')
+        }
         setCameraEnabled(false)
       }
     }
@@ -643,7 +668,9 @@ function App() {
     } else if (lowerInput.includes('forecast')) {
       answer = `AI signal: ${aiForecast.direction} for next session, confidence ${aiForecast.confidence.toFixed(0)}%. Keep stops tight and position sizing disciplined.`
     } else if (lowerInput.includes('risk')) {
-      answer = `Risk meter: volatility ${volatility.toFixed(2)}. Best sector ${bestSector.sector} (${bestSector.avg.toFixed(2)}%), weak zone ${weakSector.sector} (${weakSector.avg.toFixed(2)}%).`
+      const best = bestSector ? `${bestSector.sector} (${bestSector.avg.toFixed(2)}%)` : 'loading'
+      const weak = weakSector ? `${weakSector.sector} (${weakSector.avg.toFixed(2)}%)` : 'loading'
+      answer = `Risk meter: volatility ${volatility.toFixed(2)}. Best sector ${best}, weak zone ${weak}.`
     } else if (lowerInput.includes('kse')) {
       answer = liveIndexSnapshots.map((i) => `${i.index} ${i.level.toLocaleString()} (${i.change.toFixed(2)}%)`).join(' | ')
     } else if (lowerInput.includes('news')) {
@@ -678,12 +705,14 @@ function App() {
   }
 
   const runAiPlaybook = (mode: 'rebalance' | 'hedge' | 'swing') => {
+    const top1 = topMovers[0]
+    const top2 = topMovers[1]
     const note =
       mode === 'rebalance'
-        ? `AI Rebalancer: trim weakest sectors and rotate 12-18% into ${bestSector.sector}.`
+        ? `AI Rebalancer: trim weakest sectors and rotate 12-18% into ${bestSector?.sector ?? 'best sector candidate'}.`
         : mode === 'hedge'
           ? `AI Hedge: volatility ${volatility.toFixed(2)} indicates partial defensive hedge until momentum stabilizes.`
-          : `AI Swing Setup: focus on ${topMovers[0].symbol} and ${topMovers[1].symbol} with strict stop discipline.`
+          : `AI Swing Setup: focus on ${top1?.symbol ?? 'top mover #1'} and ${top2?.symbol ?? 'top mover #2'} with strict stop discipline.`
 
     setMessages((prev) => [...prev, { role: 'assistant', text: note }])
   }
@@ -780,6 +809,9 @@ function App() {
     '--cv-light': lightLevel.toFixed(3),
     '--cv-talk': isSpeaking ? '1' : '0',
   } as CSSProperties
+
+  const cvSignalText = `Motion ${(motionLevel * 100).toFixed(0)}% · Light ${(lightLevel * 100).toFixed(0)}%`
+  const cvTickText = lastCvTickAt ? `Last CV frame ${new Date(lastCvTickAt).toLocaleTimeString()}` : 'No CV frames yet'
 
   if (!loggedIn) {
     return (
@@ -916,7 +948,8 @@ function App() {
                 {cameraEnabled ? 'Disable CV Camera' : 'Enable CV Camera'}
               </button>
             </div>
-            <small>{cameraStatus}</small>
+            <small>{cameraStatus} · {cvSignalText}</small>
+            <small>{voiceStatus} · {cvTickText}</small>
             <video ref={cvVideoRef} className="cv-video-hidden" playsInline muted />
             <canvas ref={cvCanvasRef} className="cv-canvas-hidden" />
           </div>
@@ -939,7 +972,7 @@ function App() {
             </div>
           </div>
           <p>
-            Sector alpha now: <span className="up">{bestSector.sector} ({bestSector.avg.toFixed(2)}%)</span> · Pressure zone: <span className="down">{weakSector.sector} ({weakSector.avg.toFixed(2)}%)</span>
+            Sector alpha now: <span className="up">{bestSector ? `${bestSector.sector} (${bestSector.avg.toFixed(2)}%)` : 'Loading...'}</span> · Pressure zone: <span className="down">{weakSector ? `${weakSector.sector} (${weakSector.avg.toFixed(2)}%)` : 'Loading...'}</span>
           </p>
         </article>
 
