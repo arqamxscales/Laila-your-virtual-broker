@@ -1,0 +1,42 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" fill="#F6FAFF"/>
+  <rect x="60" y="60" width="1160" height="600" rx="24" fill="#0B1428"/>
+  <rect x="95" y="100" width="430" height="240" rx="14" fill="#FFFFFF"/>
+  <rect x="555" y="100" width="630" height="240" rx="14" fill="#11284C"/>
+  <rect x="95" y="375" width="1090" height="245" rx="14" fill="#0E1F3D"/>
+
+  <g opacity="0.9">
+    <rect x="115" y="130" width="180" height="24" rx="6" fill="#0A4EFF"/>
+    <rect x="115" y="168" width="250" height="14" rx="4" fill="#AFC7FF"/>
+    <rect x="115" y="192" width="210" height="14" rx="4" fill="#AFC7FF"/>
+    <rect x="115" y="216" width="280" height="14" rx="4" fill="#AFC7FF"/>
+  </g>
+
+  <g>
+    <polyline points="585,300 650,250 720,280 790,190 860,210 930,160 1000,190 1070,130 1140,170" stroke="#4CD3FF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1140" cy="170" r="10" fill="#FFFFFF"/>
+  </g>
+
+  <g fill="#D8E6FF" font-family="Arial, sans-serif" font-size="24" font-weight="700">
+    <text x="585" y="145">Pakistan Stock Exchange</text>
+    <text x="585" y="180">Live Market Board</text>
+  </g>
+
+  <g>
+    <rect x="130" y="410" width="220" height="170" rx="10" fill="#13305F"/>
+    <rect x="370" y="410" width="220" height="170" rx="10" fill="#13305F"/>
+    <rect x="610" y="410" width="220" height="170" rx="10" fill="#13305F"/>
+    <rect x="850" y="410" width="300" height="170" rx="10" fill="#13305F"/>
+  </g>
+
+  <g fill="#EAF2FF" font-family="Arial, sans-serif" font-size="18">
+    <text x="150" y="450">KSE-100</text>
+    <text x="150" y="485">79,420</text>
+    <text x="390" y="450">Volume</text>
+    <text x="390" y="485">178M</text>
+    <text x="630" y="450">Advancers</text>
+    <text x="630" y="485">327</text>
+    <text x="870" y="450">Sector Leaders</text>
+    <text x="870" y="485">Banks, Energy, Tech</text>
+  </g>
+</svg>

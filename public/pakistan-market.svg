@@ -1,0 +1,29 @@
+<svg width="1280" height="500" viewBox="0 0 1280 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="500" fill="#F8FBFF"/>
+  <rect y="370" width="1280" height="130" fill="#0A1D3D"/>
+
+  <path d="M0 360L90 300L180 340L280 250L380 320L520 200L640 300L740 240L850 290L960 170L1080 250L1180 220L1280 280V370H0V360Z" fill="#123C7A"/>
+  <path d="M0 380L70 330L160 370L280 285L410 350L520 240L630 310L760 260L900 320L1020 220L1150 290L1280 250V500H0V380Z" fill="#1F57A8" opacity="0.8"/>
+
+  <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="120,320 260,285 370,305 500,230 650,245 780,200 920,215 1040,165 1160,180"/>
+    <line x1="1160" y1="180" x2="1220" y2="145"/>
+    <line x1="1220" y1="145" x2="1180" y2="145"/>
+    <line x1="1220" y1="145" x2="1220" y2="185"/>
+  </g>
+
+  <g fill="#0D2E60">
+    <rect x="120" y="90" width="260" height="130" rx="12" fill="#DCEBFF"/>
+    <rect x="430" y="90" width="260" height="130" rx="12" fill="#DCEBFF"/>
+    <rect x="740" y="90" width="260" height="130" rx="12" fill="#DCEBFF"/>
+  </g>
+
+  <g fill="#0D2E60" font-family="Arial, sans-serif" font-size="26" font-weight="700">
+    <text x="145" y="145">PSX Trend</text>
+    <text x="145" y="178">Blue-chip Flow</text>
+    <text x="455" y="145">Macro Watch</text>
+    <text x="455" y="178">Rates & FX</text>
+    <text x="770" y="145">AI Signals</text>
+    <text x="770" y="178">Momentum</text>
+  </g>
+</svg>
