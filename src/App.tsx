@@ -36,6 +36,17 @@ type Holding = {
   avgPrice: number
 }
 
+type SecpSector = {
+  code: string
+  name: string
+}
+
+type SectorMapping = {
+  liveSector: string
+  matched: SecpSector | null
+  score: number
+}
+
 const DEMO_USER = {
   email: 'demo@genzfintech.com',
   password: 'GenZ@2026',
@@ -72,8 +83,123 @@ const indexSnapshots: IndexSnapshot[] = [
   { index: 'ALLSHR', level: 52683, change: 0.61 },
 ]
 
+const SECP_54_SECTOR_CATALOG: SecpSector[] = [
+  { code: 'SECP-01', name: 'Automobile Assembler' },
+  { code: 'SECP-02', name: 'Automobile Parts & Accessories' },
+  { code: 'SECP-03', name: 'Cable & Electrical Goods' },
+  { code: 'SECP-04', name: 'Cement' },
+  { code: 'SECP-05', name: 'Chemical' },
+  { code: 'SECP-06', name: 'Close-End Mutual Fund' },
+  { code: 'SECP-07', name: 'Commercial Banks' },
+  { code: 'SECP-08', name: 'Engineering' },
+  { code: 'SECP-09', name: 'Fertilizer' },
+  { code: 'SECP-10', name: 'Food & Personal Care Products' },
+  { code: 'SECP-11', name: 'Glass & Ceramics' },
+  { code: 'SECP-12', name: 'Insurance' },
+  { code: 'SECP-13', name: 'Investment Banks / Investment Companies / Securities Companies' },
+  { code: 'SECP-14', name: 'Leasing Companies' },
+  { code: 'SECP-15', name: 'Leather & Tanneries' },
+  { code: 'SECP-16', name: 'Miscellaneous' },
+  { code: 'SECP-17', name: 'Modarabas' },
+  { code: 'SECP-18', name: 'Oil & Gas Exploration Companies' },
+  { code: 'SECP-19', name: 'Oil & Gas Marketing Companies' },
+  { code: 'SECP-20', name: 'Paper & Board' },
+  { code: 'SECP-21', name: 'Pharmaceuticals' },
+  { code: 'SECP-22', name: 'Power Generation & Distribution' },
+  { code: 'SECP-23', name: 'Refinery' },
+  { code: 'SECP-24', name: 'Sugar & Allied Industries' },
+  { code: 'SECP-25', name: 'Synthetic & Rayon' },
+  { code: 'SECP-26', name: 'Technology & Communication' },
+  { code: 'SECP-27', name: 'Textile Composite' },
+  { code: 'SECP-28', name: 'Textile Spinning' },
+  { code: 'SECP-29', name: 'Textile Weaving' },
+  { code: 'SECP-30', name: 'Tobacco' },
+  { code: 'SECP-31', name: 'Transport' },
+  { code: 'SECP-32', name: 'Vanaspati & Allied Industries' },
+  { code: 'SECP-33', name: 'Woolen' },
+  { code: 'SECP-34', name: 'Exchange Traded Funds' },
+  { code: 'SECP-35', name: 'Real Estate Investment Trust' },
+  { code: 'SECP-36', name: 'Asset Management Companies' },
+  { code: 'SECP-37', name: 'Property' },
+  { code: 'SECP-38', name: 'Transport Services' },
+  { code: 'SECP-39', name: 'Automobile Dealer' },
+  { code: 'SECP-40', name: 'Building Materials' },
+  { code: 'SECP-41', name: 'Ceramics' },
+  { code: 'SECP-42', name: 'Consumer Electronics' },
+  { code: 'SECP-43', name: 'Data Storage' },
+  { code: 'SECP-44', name: 'E-Commerce' },
+  { code: 'SECP-45', name: 'Education' },
+  { code: 'SECP-46', name: 'Healthcare Services' },
+  { code: 'SECP-47', name: 'Household Goods' },
+  { code: 'SECP-48', name: 'Information Technology Services' },
+  { code: 'SECP-49', name: 'Logistics' },
+  { code: 'SECP-50', name: 'Metals & Mining' },
+  { code: 'SECP-51', name: 'Packaging' },
+  { code: 'SECP-52', name: 'Petrochemicals' },
+  { code: 'SECP-53', name: 'Renewable Energy' },
+  { code: 'SECP-54', name: 'Telecommunication Infrastructure' },
+]
+
+const TAXONOMY_REFERENCE_DATE = '24 Apr 2026'
+
+type TaxonomyModalProps = {
+  isOpen: boolean
+  onClose: () => void
+  sectors: SecpSector[]
+  mappedCount: number
+  liveSectorCount: number
+  unmatchedLiveSectors: string[]
+  generatedAt: string
+}
+
+function TaxonomyModal({ isOpen, onClose, sectors, mappedCount, liveSectorCount, unmatchedLiveSectors, generatedAt }: TaxonomyModalProps) {
+  if (!isOpen) return null
+
+  return (
+    <div className="taxonomy-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        className="taxonomy-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="taxonomy-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="taxonomy-modal-head">
+          <h2 id="taxonomy-modal-title">SECP 54-Sector Taxonomy</h2>
+          <button type="button" onClick={onClose}>Close</button>
+        </div>
+        <p className="hint">Reference catalog for taxonomy view and sector normalization.</p>
+        <div className="taxonomy-meta-grid">
+          <span>Reference Date: {TAXONOMY_REFERENCE_DATE}</span>
+          <span>Generated: {generatedAt}</span>
+          <span>Coverage: {mappedCount}/{liveSectorCount || 0} live sectors mapped</span>
+          <span>Catalog Size: {sectors.length}</span>
+        </div>
+        {unmatchedLiveSectors.length ? (
+          <p className="hint">
+            Unmapped live sectors: {unmatchedLiveSectors.slice(0, 6).join(', ')}{unmatchedLiveSectors.length > 6 ? '…' : ''}
+          </p>
+        ) : (
+          <p className="hint up">All live sectors are mapped to taxonomy entries.</p>
+        )}
+        <div className="taxonomy-list-wrap">
+          <ol className="taxonomy-list">
+            {sectors.map((sector) => (
+              <li key={sector.code}>
+                <strong>{sector.code}</strong>
+                <span>{sector.name}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const formatMoney = (n: number) => new Intl.NumberFormat('en-PK').format(Math.round(n))
 const parseNumber = (value: string) => Number(value.replace(/,/g, '').replace(/[^0-9.+-]/g, '')) || 0
+const normalizeSectorName = (value: string) => value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
 
 function App() {
   const [email, setEmail] = useState(DEMO_USER.email)
@@ -83,6 +209,7 @@ function App() {
 
   const [stocks, setStocks] = useState<Stock[]>([])
   const [selectedSector, setSelectedSector] = useState('All PSX Sectors')
+  const [showTaxonomyModal, setShowTaxonomyModal] = useState(false)
   const [search, setSearch] = useState('')
   const [chatInput, setChatInput] = useState('')
   const [messages, setMessages] = useState<Message[]>([
@@ -112,6 +239,7 @@ function App() {
   const [voiceStatus, setVoiceStatus] = useState('Voice ready')
   const [beatOn, setBeatOn] = useState(false)
   const [beatBpm, setBeatBpm] = useState(62)
+  const [nowTs, setNowTs] = useState(Date.now())
   const lastTrackedSearch = useRef('')
   const audioCtxRef = useRef<AudioContext | null>(null)
   const beatTimerRef = useRef<number | null>(null)
@@ -285,6 +413,11 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
     if (!('speechSynthesis' in window)) return
 
     const pickVoice = () => {
@@ -301,6 +434,19 @@ function App() {
 
     return () => window.speechSynthesis.removeEventListener('voiceschanged', pickVoice)
   }, [])
+
+  useEffect(() => {
+    if (!showTaxonomyModal) return
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowTaxonomyModal(false)
+      }
+    }
+
+    window.addEventListener('keydown', onEscape)
+    return () => window.removeEventListener('keydown', onEscape)
+  }, [showTaxonomyModal])
 
   const totalMarketCap = useMemo(
     () => stocks.reduce((sum, s) => sum + s.marketCapB, 0),
@@ -355,6 +501,93 @@ function App() {
       return sectorMatch && text.includes(search.toLowerCase())
     })
   }, [search, selectedSector, stocks])
+
+  const taxonomyMappings = useMemo(() => {
+    const normalizedCatalog = SECP_54_SECTOR_CATALOG.map((sector) => ({
+      sector,
+      normalized: normalizeSectorName(sector.name),
+      tokens: new Set(normalizeSectorName(sector.name).split(' ').filter((t) => t.length > 2)),
+    }))
+
+    const scoreMatch = (live: string, candidate: { normalized: string; tokens: Set<string> }) => {
+      if (live === candidate.normalized) return 1
+      if (live.includes(candidate.normalized) || candidate.normalized.includes(live)) return 0.92
+      const liveTokens = new Set(live.split(' ').filter((t) => t.length > 2))
+      let overlap = 0
+      liveTokens.forEach((t) => {
+        if (candidate.tokens.has(t)) overlap += 1
+      })
+      if (!liveTokens.size) return 0
+      return overlap / Math.max(liveTokens.size, candidate.tokens.size)
+    }
+
+    const mappings: SectorMapping[] = sectorList.map((liveSector) => {
+      const normalizedLive = normalizeSectorName(liveSector)
+      let best: { sector: SecpSector; score: number } | null = null
+
+      for (const candidate of normalizedCatalog) {
+        const score = scoreMatch(normalizedLive, candidate)
+        if (!best || score > best.score) {
+          best = { sector: candidate.sector, score }
+        }
+      }
+
+      const threshold = 0.45
+      return {
+        liveSector,
+        matched: best && best.score >= threshold ? best.sector : null,
+        score: best?.score ?? 0,
+      }
+    })
+
+    return mappings.sort((a, b) => b.score - a.score)
+  }, [sectorList])
+
+  const taxonomyCoverage = useMemo(() => {
+    const mapped = taxonomyMappings.filter((m) => m.matched)
+    const unmapped = taxonomyMappings.filter((m) => !m.matched).map((m) => m.liveSector)
+    const ratio = taxonomyMappings.length ? (mapped.length / taxonomyMappings.length) * 100 : 0
+    return {
+      mappedCount: mapped.length,
+      unmapped,
+      ratio,
+    }
+  }, [taxonomyMappings])
+
+  const aiAdvanced = useMemo(() => {
+    const positiveCount = stocks.filter((s) => s.change > 0).length
+    const breadth = stocks.length ? (positiveCount / stocks.length) * 100 : 0
+    const sortedByVol = [...stocks].sort((a, b) => b.volume - a.volume)
+    const totalVolume = sortedByVol.reduce((sum, s) => sum + s.volume, 0)
+    const top10Volume = sortedByVol.slice(0, 10).reduce((sum, s) => sum + s.volume, 0)
+    const concentration = totalVolume ? (top10Volume / totalVolume) * 100 : 0
+    const anomalyThreshold = Math.abs(avgChange) + volatility * 1.9
+    const anomalies = stocks.filter((s) => Math.abs(s.change) >= anomalyThreshold).slice(0, 5)
+
+    const regime =
+      avgChange >= 0.25 && breadth >= 52 && volatility <= 2.2
+        ? 'Trend expansion'
+        : avgChange < 0 && breadth < 45
+          ? 'Risk-off rotation'
+          : 'Mixed / range bound'
+
+    return {
+      breadth,
+      concentration,
+      anomalies,
+      anomalyThreshold,
+      regime,
+    }
+  }, [avgChange, stocks, volatility])
+
+  const sessionDateLabel = useMemo(
+    () => new Date(nowTs).toLocaleDateString('en-PK', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
+    [nowTs],
+  )
+  const sessionTimeLabel = useMemo(
+    () => new Date(nowTs).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    [nowTs],
+  )
 
   const avatarInsight = useMemo(() => {
     const mood = avgChange >= 0 ? 'Risk-on momentum building. Market vibe is clean and constructive.' : 'Defensive rotation active. Stay sharp on drawdown risk.'
@@ -639,13 +872,21 @@ function App() {
     const calc = input.match(/calc\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/i)
 
     if (lowerInput === 'help' || lowerInput === 'commands') {
-      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, beat on, beat off.'
+      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, taxonomy, anomalies, date, beat on, beat off.'
     } else if (lowerInput === 'beat on') {
       void startBeat()
       answer = 'Slow background beat enabled.'
     } else if (lowerInput === 'beat off') {
       stopBeat()
       answer = 'Background beat stopped.'
+    } else if (lowerInput === 'date' || lowerInput === 'time' || lowerInput.includes('date time')) {
+      answer = `Session clock: ${sessionDateLabel} ${sessionTimeLabel}. Taxonomy reference date: ${TAXONOMY_REFERENCE_DATE}.`
+    } else if (lowerInput.includes('taxonomy')) {
+      answer = `Taxonomy coverage: ${taxonomyCoverage.mappedCount}/${sectorList.length} (${taxonomyCoverage.ratio.toFixed(0)}%) live sectors mapped. Unmapped sample: ${taxonomyCoverage.unmapped.slice(0, 3).join(', ') || 'none'}.`
+    } else if (lowerInput.includes('anomal')) {
+      answer = aiAdvanced.anomalies.length
+        ? `Anomaly radar (${aiAdvanced.anomalyThreshold.toFixed(2)}% threshold): ${aiAdvanced.anomalies.map((s) => `${s.symbol} ${s.change.toFixed(2)}%`).join(' | ')}`
+        : `No major outliers above ${aiAdvanced.anomalyThreshold.toFixed(2)}% right now.`
     } else if (calc) {
       const capital = Number(calc[1])
       const buy = Number(calc[2])
@@ -851,6 +1092,7 @@ function App() {
         <div>
           <h1>{APP_NAME}</h1>
           <p>Designed for Mohammad Arqam Javed · PSX Geo-Political & Economic AI Terminal</p>
+          <small className="date-badge">As of {sessionDateLabel} · {sessionTimeLabel}</small>
         </div>
         <div className="kpis">
           <article>
@@ -868,6 +1110,10 @@ function App() {
           <article>
             <strong className={apiMode === 'live' ? 'up' : 'down'}>{apiMode === 'live' ? 'LIVE' : 'OFFLINE'}</strong>
             <span>{lastSync ? `Synced ${lastSync}` : 'Sync pending'}</span>
+          </article>
+          <article>
+            <strong>{taxonomyCoverage.ratio.toFixed(0)}%</strong>
+            <span>Taxonomy Mapping</span>
           </article>
         </div>
       </header>
@@ -976,6 +1222,33 @@ function App() {
           </p>
         </article>
 
+        <article className="card ai-advanced-card">
+          <h2>AI Advanced Radar</h2>
+          <div className="ai-meters">
+            <div>
+              <span>Market Breadth</span>
+              <strong>{aiAdvanced.breadth.toFixed(0)}%</strong>
+            </div>
+            <div>
+              <span>Volume Concentration</span>
+              <strong>{aiAdvanced.concentration.toFixed(0)}%</strong>
+            </div>
+            <div>
+              <span>Regime</span>
+              <strong>{aiAdvanced.regime}</strong>
+            </div>
+          </div>
+          <p>
+            Outlier threshold: {aiAdvanced.anomalyThreshold.toFixed(2)}% · Active anomalies: {aiAdvanced.anomalies.length}
+          </p>
+          <p className="hint">
+            {aiAdvanced.anomalies.length
+              ? aiAdvanced.anomalies.map((s) => `${s.symbol} ${s.change.toFixed(2)}%`).join(' | ')
+              : 'No abnormal movers detected right now.'}
+          </p>
+          <button type="button" onClick={() => setShowTaxonomyModal(true)}>Open Taxonomy Intelligence</button>
+        </article>
+
         <article className="card user-analytics">
           <h2>User Analytics</h2>
           <div className="ai-meters">
@@ -1077,6 +1350,7 @@ function App() {
           <div className="panel-head">
             <h2>Stocks Live Board</h2>
             <div className="controls">
+              <button type="button" onClick={() => setShowTaxonomyModal(true)}>SECP Taxonomy</button>
               <select value={selectedSector} onChange={(e) => setSelectedSector(e.target.value)}>
                 <option>All PSX Sectors</option>
                 {sectorList.map((sector) => (
@@ -1166,7 +1440,7 @@ function App() {
 
         <article className="card chatbot">
           <h2>AI Query Assistant</h2>
-          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, kse, news, beat on/off, or calc 100000 120 136</p>
+          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, taxonomy, anomalies, date, kse, news, beat on/off, or calc 100000 120 136</p>
           <div className="chatbox">
             {messages.slice(-10).map((m, i) => (
               <div key={`${m.role}-${i}`} className={`msg ${m.role}`}>
@@ -1186,6 +1460,17 @@ function App() {
           </form>
         </article>
       </section>
+
+      <TaxonomyModal
+        isOpen={showTaxonomyModal}
+        onClose={() => setShowTaxonomyModal(false)}
+        sectors={SECP_54_SECTOR_CATALOG}
+        mappedCount={taxonomyCoverage.mappedCount}
+        liveSectorCount={sectorList.length}
+        unmatchedLiveSectors={taxonomyCoverage.unmapped}
+        generatedAt={`${sessionDateLabel} ${sessionTimeLabel}`}
+      />
+
       <p className="owner-note">Built for Mohammad Arqam Javed · {APP_NAME}</p>
     </main>
   )
