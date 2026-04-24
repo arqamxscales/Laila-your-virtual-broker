@@ -47,6 +47,14 @@ type SectorMapping = {
   score: number
 }
 
+type PsxSessionState = {
+  isOpen: boolean
+  phase: 'open' | 'closed' | 'break'
+  phaseLabel: string
+  nextEventLabel: string
+  nextEventInMinutes: number
+}
+
 const DEMO_USER = {
   email: 'demo@genzfintech.com',
   password: 'GenZ@2026',
@@ -141,6 +149,81 @@ const SECP_54_SECTOR_CATALOG: SecpSector[] = [
 ]
 
 const TAXONOMY_REFERENCE_DATE = '24 Apr 2026'
+const PAK_TIMEZONE = 'Asia/Karachi'
+const PAK_OFFSET_MS = 5 * 60 * 60 * 1000
+
+const toPakClock = (ts: number) => {
+  const pak = new Date(ts + PAK_OFFSET_MS)
+  return {
+    day: pak.getUTCDay(),
+    minutes: pak.getUTCHours() * 60 + pak.getUTCMinutes(),
+  }
+}
+
+const formatCountdown = (mins: number) => {
+  const safe = Math.max(0, mins)
+  const h = Math.floor(safe / 60)
+  const m = safe % 60
+  return `${h}h ${m}m`
+}
+
+const getPsxSessionState = (ts: number): PsxSessionState => {
+  const { day, minutes } = toPakClock(ts)
+  const windowsByDay: Record<number, Array<{ start: number; end: number }>> = {
+    1: [{ start: 9 * 60 + 30, end: 15 * 60 + 30 }],
+    2: [{ start: 9 * 60 + 30, end: 15 * 60 + 30 }],
+    3: [{ start: 9 * 60 + 30, end: 15 * 60 + 30 }],
+    4: [{ start: 9 * 60 + 30, end: 15 * 60 + 30 }],
+    5: [
+      { start: 9 * 60 + 30, end: 12 * 60 },
+      { start: 14 * 60, end: 16 * 60 + 30 },
+    ],
+    6: [],
+    0: [],
+  }
+
+  const todaysWindows = windowsByDay[day] ?? []
+  const activeWindow = todaysWindows.find((w) => minutes >= w.start && minutes < w.end)
+  if (activeWindow) {
+    return {
+      isOpen: true,
+      phase: 'open',
+      phaseLabel: 'PSX OPEN',
+      nextEventLabel: 'Session closes in',
+      nextEventInMinutes: activeWindow.end - minutes,
+    }
+  }
+
+  if (day === 5 && minutes >= 12 * 60 && minutes < 14 * 60) {
+    return {
+      isOpen: false,
+      phase: 'break',
+      phaseLabel: 'FRIDAY BREAK',
+      nextEventLabel: 'Session resumes in',
+      nextEventInMinutes: 14 * 60 - minutes,
+    }
+  }
+
+  const nextOpenDelta = (() => {
+    for (let add = 0; add < 8; add += 1) {
+      const candidateDay = (day + add) % 7
+      const candidateWindows = windowsByDay[candidateDay] ?? []
+      for (const window of candidateWindows) {
+        if (add === 0 && window.start <= minutes) continue
+        return add * 24 * 60 - minutes + window.start
+      }
+    }
+    return 24 * 60
+  })()
+
+  return {
+    isOpen: false,
+    phase: 'closed',
+    phaseLabel: 'PSX CLOSED',
+    nextEventLabel: 'Next open in',
+    nextEventInMinutes: nextOpenDelta,
+  }
+}
 
 type TaxonomyModalProps = {
   isOpen: boolean
@@ -580,12 +663,25 @@ function App() {
     }
   }, [avgChange, stocks, volatility])
 
+  const psxSession = useMemo(() => getPsxSessionState(nowTs), [nowTs])
+
+  const vgiSignal = useMemo(() => {
+    const momentum = Math.min(100, Math.max(0, 50 + avgChange * 14))
+    const stability = Math.max(0, 100 - volatility * 22)
+    const distribution = Math.max(0, 100 - aiAdvanced.concentration)
+    const taxonomy = taxonomyCoverage.ratio
+    const score = momentum * 0.34 + stability * 0.25 + distribution * 0.21 + taxonomy * 0.2
+    const grade = score >= 75 ? 'A' : score >= 62 ? 'B' : score >= 48 ? 'C' : 'D'
+    const bias = score >= 62 ? 'Constructive' : score >= 48 ? 'Neutral' : 'Defensive'
+    return { score, grade, bias }
+  }, [aiAdvanced.concentration, avgChange, taxonomyCoverage.ratio, volatility])
+
   const sessionDateLabel = useMemo(
-    () => new Date(nowTs).toLocaleDateString('en-PK', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
+    () => new Date(nowTs).toLocaleDateString('en-PK', { timeZone: PAK_TIMEZONE, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
     [nowTs],
   )
   const sessionTimeLabel = useMemo(
-    () => new Date(nowTs).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    () => new Date(nowTs).toLocaleTimeString('en-PK', { timeZone: PAK_TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     [nowTs],
   )
 
@@ -872,7 +968,7 @@ function App() {
     const calc = input.match(/calc\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/i)
 
     if (lowerInput === 'help' || lowerInput === 'commands') {
-      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, taxonomy, anomalies, date, beat on, beat off.'
+      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, taxonomy, anomalies, session, vgi, date, beat on, beat off.'
     } else if (lowerInput === 'beat on') {
       void startBeat()
       answer = 'Slow background beat enabled.'
@@ -881,6 +977,10 @@ function App() {
       answer = 'Background beat stopped.'
     } else if (lowerInput === 'date' || lowerInput === 'time' || lowerInput.includes('date time')) {
       answer = `Session clock: ${sessionDateLabel} ${sessionTimeLabel}. Taxonomy reference date: ${TAXONOMY_REFERENCE_DATE}.`
+    } else if (lowerInput.includes('session') || lowerInput.includes('market hour') || lowerInput.includes('psx time')) {
+      answer = `${psxSession.phaseLabel}. ${psxSession.nextEventLabel} ${formatCountdown(psxSession.nextEventInMinutes)} (Pakistan time).`
+    } else if (lowerInput.includes('vgi')) {
+      answer = `VGI score ${vgiSignal.score.toFixed(1)} (${vgiSignal.grade}) with ${vgiSignal.bias} bias. Breadth ${aiAdvanced.breadth.toFixed(0)}%, concentration ${aiAdvanced.concentration.toFixed(0)}%, volatility ${volatility.toFixed(2)}.`
     } else if (lowerInput.includes('taxonomy')) {
       answer = `Taxonomy coverage: ${taxonomyCoverage.mappedCount}/${sectorList.length} (${taxonomyCoverage.ratio.toFixed(0)}%) live sectors mapped. Unmapped sample: ${taxonomyCoverage.unmapped.slice(0, 3).join(', ') || 'none'}.`
     } else if (lowerInput.includes('anomal')) {
@@ -983,6 +1083,11 @@ function App() {
   const totalEquity = portfolioCash + portfolioValue
 
   const doTrade = (side: 'buy' | 'sell') => {
+    if (!psxSession.isOpen) {
+      setPortfolioNote(`Trading window is closed (${psxSession.phaseLabel}). ${psxSession.nextEventLabel} ${formatCountdown(psxSession.nextEventInMinutes)} PKT.`)
+      return
+    }
+
     const symbol = tradeSymbol.trim().toUpperCase()
     const qty = Math.max(0, Math.floor(tradeQty))
     if (!symbol || qty <= 0) {
@@ -1119,6 +1224,9 @@ function App() {
       </header>
 
       <section className="soundbar">
+        <span className={`session-chip ${psxSession.phase}`}>
+          {psxSession.phaseLabel} · {psxSession.nextEventLabel} {formatCountdown(psxSession.nextEventInMinutes)}
+        </span>
         <button type="button" onClick={toggleBeat}>{beatOn ? 'Stop Slow Beat' : 'Play Slow Beat'}</button>
         <span>{beatOn ? `Background beat running · ${beatBpm} BPM` : 'Background beat is off'}</span>
         <input
@@ -1247,6 +1355,30 @@ function App() {
               : 'No abnormal movers detected right now.'}
           </p>
           <button type="button" onClick={() => setShowTaxonomyModal(true)}>Open Taxonomy Intelligence</button>
+        </article>
+
+        <article className="card terminal-card">
+          <h2>Advanced Market Terminal · PKT Synced</h2>
+          <div className="ai-meters">
+            <div>
+              <span>PSX Session</span>
+              <strong className={psxSession.isOpen ? 'up' : 'down'}>{psxSession.phaseLabel}</strong>
+            </div>
+            <div>
+              <span>VGI Score</span>
+              <strong>{vgiSignal.score.toFixed(1)} · {vgiSignal.grade}</strong>
+            </div>
+            <div>
+              <span>VGI Bias</span>
+              <strong>{vgiSignal.bias}</strong>
+            </div>
+          </div>
+          <p>
+            Countdown: {psxSession.nextEventLabel} <strong>{formatCountdown(psxSession.nextEventInMinutes)}</strong> · Timezone: Pakistan ({PAK_TIMEZONE})
+          </p>
+          <p className="hint">
+            PSX schedule synced: Mon-Thu 09:30-15:30 · Fri 09:30-12:00 and 14:00-16:30.
+          </p>
         </article>
 
         <article className="card user-analytics">
@@ -1440,7 +1572,7 @@ function App() {
 
         <article className="card chatbot">
           <h2>AI Query Assistant</h2>
-          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, taxonomy, anomalies, date, kse, news, beat on/off, or calc 100000 120 136</p>
+          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, taxonomy, anomalies, session, vgi, date, kse, news, beat on/off, or calc 100000 120 136</p>
           <div className="chatbox">
             {messages.slice(-10).map((m, i) => (
               <div key={`${m.role}-${i}`} className={`msg ${m.role}`}>
