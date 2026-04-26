@@ -1,5 +1,80 @@
+# ============================================================================
+# GENZ PSX BROKER - GITIGNORE (SECURITY-HARDENED)
+# ============================================================================
+# Comprehensive rules to prevent accidental exposure of secrets, builds,
+# dependencies, and system artifacts while maintaining clean repository.
+
+# ============================================================================
+# ENVIRONMENT & SECRETS (CRITICAL)
+# ============================================================================
+# Never commit actual environment files - only .env.example
+.env
+.env.local
+.env.*.local
+.env.*.example
+!.env.example
+
+# API Keys and tokens (defense in depth)
+.api-keys
+.secrets
+*.key
+*.pem
+*.p8
+*.p12
+
+# ============================================================================
+# DEPENDENCIES & PACKAGE MANAGERS
+# ============================================================================
+node_modules/
+bower_components/
+vendor/
+.npm
+.eslintcache
+.npmrc
+.yarnrc
+.pnpmfile.cjs
+
+# ============================================================================
+# BUILD ARTIFACTS & OUTPUT
+# ============================================================================
+dist/
+dist-ssr/
+build/
+.next/
+out/
+
+# Vite & build caches
+.vite/
+.parcel-cache/
+.cache/
+
+# Webpack & bundler caches
+.webpack_cache/
+
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Production bundle analysis
+bundle-report.html
+stats.json
+
+# ============================================================================
+# RUNTIME & TEMPORARY FILES
+# ============================================================================
+*.local
+*.tmp
+*.temp
+*.log
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,33 +82,96 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
+# ============================================================================
+# IDE & EDITOR CONFIGURATIONS (SELECTIVE)
+# ============================================================================
 .vscode/*
 !.vscode/extensions.json
 !.vscode/tasks.json
-.idea
-.DS_Store
+!.vscode/settings.json
+
+.idea/
+*.swp
+*.swo
+*.swn
+*#
+*.sublime-project
+*.sublime-workspace
+
+# Visual Studio
+.vs/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# JetBrains
+*.iml
+*.iws
+*.ipr
+.idea/
+
+# ============================================================================
+# VERCEL & DEPLOYMENT
+# ============================================================================
+.vercel/
 .vercel
+.next/
+out/
 
-# Environment
-.env
-.env.*
-!.env.example
+# ============================================================================
+# DEBUGGING & TESTING
+# ============================================================================
+.env.test
+.env.test.local
+.env.dev
+.env.debug
 
-# Build caches
-.vite
-coverage
+# ============================================================================
+# OS-SPECIFIC
+# ============================================================================
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
 
-# Local scratch assets
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ============================================================================
+# LOCAL ASSET ARTIFACTS (WORK-IN-PROGRESS)
+# ============================================================================
 Images/Screenshot*.png
-*.tmp
+Images/*.tmp
+Images/*.temp
+public/images/temp/
+*.psd
+*.sketch
+
+# ============================================================================
+# SENSITIVE/PRIVATE DATA
+# ============================================================================
+private/
+secrets/
+*.backup
+*.bak
+*.old
+
+# Database files (if any)
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================================================
+# MISC ARTIFACTS
+# ============================================================================
+.tern-port
+.env.*.txt
+*.bak~
+.venv
+venv/
+env/
