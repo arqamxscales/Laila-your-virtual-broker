@@ -577,6 +577,81 @@ td {
   grid-column: span 4;
 }
 
+.watchlist-card {
+  grid-column: span 4;
+}
+
+.watch-controls {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.45rem;
+  margin: 0.65rem 0;
+}
+
+.threshold-inline {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: #d4e5ff;
+}
+
+.threshold-inline input {
+  width: 94px;
+}
+
+.watch-list {
+  margin: 0.4rem 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.38rem;
+}
+
+.watch-list li {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr 0.8fr auto;
+  gap: 0.42rem;
+  align-items: center;
+  font-size: 0.81rem;
+  padding: 0.4rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 170, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.watch-list button {
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+}
+
+.quant-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.quant-controls label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.quant-kpis {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.quant-kpis span {
+  border: 1px solid rgba(125, 174, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 0.36rem 0.44rem;
+  font-size: 0.81rem;
+}
+
 .terminal-card {
   grid-column: span 8;
 }
@@ -729,6 +804,11 @@ td {
 
   .trade-controls {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .watch-controls,
+  .quant-controls {
+    grid-template-columns: 1fr;
   }
 
   .soundbar {

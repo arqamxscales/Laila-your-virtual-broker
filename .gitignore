@@ -33,3 +33,7 @@ dist-ssr
 # Build caches
 .vite
 coverage
+
+# Local scratch assets
+Images/Screenshot*.png
+*.tmp

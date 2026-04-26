@@ -1,6 +1,6 @@
 # Laila-Your-Virtual-Broker
 
-AI-powered Pakistan Stock Exchange dashboard with a blue/white/black theme, real market visuals, live data fallback, user analytics, and a virtual portfolio manager.
+AI-powered Pakistan Stock Exchange dashboard with PKT-synced market timing, advanced terminal analytics, AI watchlists, VGI market scoring, and virtual portfolio simulation.
 
 ## Live Website
 
@@ -14,8 +14,12 @@ AI-powered Pakistan Stock Exchange dashboard with a blue/white/black theme, real
 ## Features
 
 - Laila AI assistant with voice briefing
+- Pakistan-time PSX session engine (Mon-Thu 09:30-15:30, Fri split session)
 - Blue/white/black modern dashboard UI
 - Live ticker board + sector momentum view
+- Advanced AI terminal: VGI score, regime detection, anomaly radar, feed health
+- AI watchlist and alert center with local persistence
+- Quant execution lab with strategy-aware position sizing
 - User analytics (engagement, activity, chat/trade metrics)
 - Virtual portfolio manager (buy/sell simulation)
 - Top movers, IPO tracker, macro indicators, and news feed
@@ -23,8 +27,7 @@ AI-powered Pakistan Stock Exchange dashboard with a blue/white/black theme, real
 
 ## Demo Credentials
 
-- Email: demo@genzfintech.com
-- Password: GenZ@2026
+- Configured via environment variables (`VITE_DEMO_EMAIL`, `VITE_DEMO_PASSWORD`)
 
 ## Tech Stack
 
@@ -35,8 +38,14 @@ AI-powered Pakistan Stock Exchange dashboard with a blue/white/black theme, real
 ## Local Development
 
 1. npm install
-2. npm run dev
-3. Open the local Vite URL
+2. cp .env.example .env
+3. Set your local values in `.env`
+4. npm run dev
+5. Open the local Vite URL
+
+## Environment Variables
+
+See [.env.example](.env.example) for supported variables.
 
 ## Production Build
 

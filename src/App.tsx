@@ -55,10 +55,15 @@ type PsxSessionState = {
   nextEventInMinutes: number
 }
 
+type StrategyMode = 'scalp' | 'swing' | 'position'
+
 const DEMO_USER = {
-  email: 'demo@genzfintech.com',
-  password: 'GenZ@2026',
+  email: import.meta.env.VITE_DEMO_EMAIL ?? 'demo@genzfintech.com',
+  password: import.meta.env.VITE_DEMO_PASSWORD ?? 'ChangeMe@2026',
 }
+
+const DEFAULT_ALERT_THRESHOLD = Number(import.meta.env.VITE_ALERT_THRESHOLD ?? '2.5')
+const VGI_MODEL_VERSION = import.meta.env.VITE_MODEL_VERSION ?? 'VGI-PSX-2.6'
 
 const APP_NAME = 'Laila-Your-Virtual-Broker'
 
@@ -306,6 +311,7 @@ function App() {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([])
   const [liveIndexSnapshots, setLiveIndexSnapshots] = useState<IndexSnapshot[]>(indexSnapshots)
   const [lastSync, setLastSync] = useState('')
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null)
   const [loginTime, setLoginTime] = useState<number | null>(null)
   const [analytics, setAnalytics] = useState({ chatQueries: 0, stockSearches: 0, trades: 0, briefings: 0 })
   const [portfolioCash, setPortfolioCash] = useState(1_500_000)
@@ -323,6 +329,11 @@ function App() {
   const [beatOn, setBeatOn] = useState(false)
   const [beatBpm, setBeatBpm] = useState(62)
   const [nowTs, setNowTs] = useState(Date.now())
+  const [watchInput, setWatchInput] = useState('')
+  const [watchlist, setWatchlist] = useState<string[]>([])
+  const [alertThreshold, setAlertThreshold] = useState(DEFAULT_ALERT_THRESHOLD)
+  const [riskBudgetPct, setRiskBudgetPct] = useState(2)
+  const [strategyMode, setStrategyMode] = useState<StrategyMode>('swing')
   const lastTrackedSearch = useRef('')
   const audioCtxRef = useRef<AudioContext | null>(null)
   const beatTimerRef = useRef<number | null>(null)
@@ -478,7 +489,9 @@ function App() {
         // optional endpoint
       }
 
-      setLastSync(new Date().toLocaleTimeString())
+      const now = Date.now()
+      setLastSyncAt(now)
+      setLastSync(new Date(now).toLocaleTimeString('en-PK', { timeZone: PAK_TIMEZONE }))
     }
 
     const syncAll = async () => {
@@ -499,6 +512,37 @@ function App() {
     const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    try {
+      const savedWatch = window.localStorage.getItem('genz.watchlist')
+      const savedThreshold = window.localStorage.getItem('genz.alertThreshold')
+
+      if (savedWatch) {
+        const parsed = JSON.parse(savedWatch) as string[]
+        if (Array.isArray(parsed)) {
+          setWatchlist(parsed.filter((s) => /^[A-Z0-9]{2,5}$/.test(s)).slice(0, 20))
+        }
+      }
+
+      if (savedThreshold) {
+        const threshold = Number(savedThreshold)
+        if (Number.isFinite(threshold) && threshold > 0) {
+          setAlertThreshold(Math.min(15, Math.max(0.5, threshold)))
+        }
+      }
+    } catch {
+      // localStorage optional
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('genz.watchlist', JSON.stringify(watchlist))
+  }, [watchlist])
+
+  useEffect(() => {
+    window.localStorage.setItem('genz.alertThreshold', String(alertThreshold))
+  }, [alertThreshold])
 
   useEffect(() => {
     if (!('speechSynthesis' in window)) return
@@ -675,6 +719,36 @@ function App() {
     const bias = score >= 62 ? 'Constructive' : score >= 48 ? 'Neutral' : 'Defensive'
     return { score, grade, bias }
   }, [aiAdvanced.concentration, avgChange, taxonomyCoverage.ratio, volatility])
+
+  const watchlistRows = useMemo(() => {
+    return watchlist
+      .map((symbol) => {
+        const stock = stocks.find((s) => s.symbol === symbol)
+        if (!stock) return null
+        return {
+          symbol,
+          price: stock.price,
+          change: stock.change,
+          volume: stock.volume,
+        }
+      })
+      .filter((row): row is { symbol: string; price: number; change: number; volume: number } => row !== null)
+  }, [stocks, watchlist])
+
+  const watchAlerts = useMemo(() => {
+    const symbolAlerts = watchlistRows
+      .filter((row) => Math.abs(row.change) >= alertThreshold)
+      .map((row) => `${row.symbol} moved ${row.change.toFixed(2)}% (threshold ${alertThreshold.toFixed(2)}%)`)
+
+    const anomalyAlerts = aiAdvanced.anomalies.slice(0, 3).map((row) => `Anomaly: ${row.symbol} at ${row.change.toFixed(2)}%`)
+    return [...symbolAlerts, ...anomalyAlerts]
+  }, [aiAdvanced.anomalies, alertThreshold, watchlistRows])
+
+  const dataHealth = useMemo(() => {
+    const latencySec = lastSyncAt ? Math.max(0, (nowTs - lastSyncAt) / 1000) : null
+    const feedStatus = apiMode === 'live' && latencySec !== null && latencySec <= 95 ? 'Healthy' : apiMode === 'live' ? 'Degraded' : 'Offline'
+    return { latencySec, feedStatus }
+  }, [apiMode, lastSyncAt, nowTs])
 
   const sessionDateLabel = useMemo(
     () => new Date(nowTs).toLocaleDateString('en-PK', { timeZone: PAK_TIMEZONE, weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
@@ -957,18 +1031,61 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [search])
 
+  const addWatchSymbol = (rawSymbol: string) => {
+    const symbol = rawSymbol.trim().toUpperCase()
+    if (!/^[A-Z0-9]{2,5}$/.test(symbol)) {
+      return 'Use a valid symbol format (2-5 letters).'
+    }
+    const exists = stocks.some((s) => s.symbol === symbol)
+    if (!exists) {
+      return `${symbol} is not found in current PSX feed.`
+    }
+    let added = false
+    setWatchlist((prev) => {
+      if (prev.includes(symbol)) return prev
+      added = true
+      return [...prev, symbol].slice(0, 20)
+    })
+    return added ? `${symbol} added to watchlist.` : `${symbol} already exists in watchlist.`
+  }
+
+  const removeWatchSymbol = (rawSymbol: string) => {
+    const symbol = rawSymbol.trim().toUpperCase()
+    let removed = false
+    setWatchlist((prev) => {
+      if (!prev.includes(symbol)) return prev
+      removed = true
+      return prev.filter((s) => s !== symbol)
+    })
+    return removed ? `${symbol} removed from watchlist.` : `${symbol} is not in watchlist.`
+  }
+
   const processChat = (q: string) => {
     const input = q.trim()
     if (!input) return
 
     const lowerInput = input.toLowerCase()
     const compare = input.match(/compare\s+([a-z0-9]+)\s+([a-z0-9]+)/i)
+    const watchAdd = input.match(/watch\s+add\s+([a-z0-9]{2,5})/i)
+    const watchRemove = input.match(/watch\s+remove\s+([a-z0-9]{2,5})/i)
 
     let answer = 'I can help with ticker lookup, sector pulse, IPOs, and calculations. Try: calc 100000 120 136'
     const calc = input.match(/calc\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/i)
 
     if (lowerInput === 'help' || lowerInput === 'commands') {
-      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, taxonomy, anomalies, session, vgi, date, beat on, beat off.'
+      answer = 'Commands: [ticker], calc capital buy sell, compare AAA BBB, gainers, losers, portfolio, forecast, risk, kse, news, sector <name>, taxonomy, anomalies, session, vgi, watch add <sym>, watch remove <sym>, watchlist, alerts, health, date, beat on, beat off.'
+    } else if (watchAdd) {
+      answer = addWatchSymbol(watchAdd[1])
+    } else if (watchRemove) {
+      answer = removeWatchSymbol(watchRemove[1])
+    } else if (lowerInput === 'watchlist' || lowerInput === 'watch') {
+      answer = watchlistRows.length
+        ? `Watchlist: ${watchlistRows.map((r) => `${r.symbol} ${r.change.toFixed(2)}%`).join(' | ')}`
+        : 'Watchlist is empty. Use: watch add HBL'
+    } else if (lowerInput === 'alerts') {
+      answer = watchAlerts.length ? watchAlerts.slice(0, 5).join(' | ') : 'No active AI alerts right now.'
+    } else if (lowerInput.includes('health')) {
+      answer = `Feed health: ${dataHealth.feedStatus}. Latency ${dataHealth.latencySec !== null ? `${Math.round(dataHealth.latencySec)}s` : 'n/a'}. Sync ${lastSync || 'pending'}.`
     } else if (lowerInput === 'beat on') {
       void startBeat()
       answer = 'Slow background beat enabled.'
@@ -1082,6 +1199,25 @@ function App() {
   const portfolioPnl = portfolioValue - portfolioCost
   const totalEquity = portfolioCash + portfolioValue
 
+  const quantSizing = useMemo(() => {
+    const strategyMultiplier: Record<StrategyMode, number> = {
+      scalp: 0.72,
+      swing: 1,
+      position: 1.26,
+    }
+    const capitalAtRisk = totalEquity * (riskBudgetPct / 100)
+    const volAdj = Math.max(0.45, Math.min(1.65, 2.2 / Math.max(0.55, volatility || 0.55)))
+    const suggestedExposure = Math.min(totalEquity * 0.35, capitalAtRisk * volAdj * strategyMultiplier[strategyMode])
+    const stock = stocks.find((s) => s.symbol === tradeSymbol.trim().toUpperCase())
+    const suggestedQty = stock ? Math.max(0, Math.floor(suggestedExposure / Math.max(1, stock.price))) : 0
+    return {
+      capitalAtRisk,
+      volAdj,
+      suggestedExposure,
+      suggestedQty,
+    }
+  }, [riskBudgetPct, strategyMode, stocks, totalEquity, tradeSymbol, volatility])
+
   const doTrade = (side: 'buy' | 'sell') => {
     if (!psxSession.isOpen) {
       setPortfolioNote(`Trading window is closed (${psxSession.phaseLabel}). ${psxSession.nextEventLabel} ${formatCountdown(psxSession.nextEventInMinutes)} PKT.`)
@@ -1137,6 +1273,8 @@ function App() {
       setPortfolioNote(`Sold ${qty} ${symbol} @ PKR ${stock.price.toFixed(2)}.`)
     }
 
+    setWatchlist((prev) => (prev.includes(symbol) ? prev : [...prev, symbol].slice(0, 20)))
+
     setAnalytics((prev) => ({ ...prev, trades: prev.trades + 1 }))
   }
 
@@ -1184,7 +1322,7 @@ function App() {
             </label>
             <button type="submit">Enter Dashboard</button>
           </form>
-          <small>Demo user: {DEMO_USER.email} / {DEMO_USER.password}</small>
+          <small>Demo user: {DEMO_USER.email} (password configured via environment)</small>
           {loginError ? <p className="error">{loginError}</p> : null}
         </section>
       </main>
@@ -1197,7 +1335,7 @@ function App() {
         <div>
           <h1>{APP_NAME}</h1>
           <p>Designed for Mohammad Arqam Javed · PSX Geo-Political & Economic AI Terminal</p>
-          <small className="date-badge">As of {sessionDateLabel} · {sessionTimeLabel}</small>
+          <small className="date-badge">As of {sessionDateLabel} · {sessionTimeLabel} (PKT)</small>
         </div>
         <div className="kpis">
           <article>
@@ -1220,6 +1358,10 @@ function App() {
             <strong>{taxonomyCoverage.ratio.toFixed(0)}%</strong>
             <span>Taxonomy Mapping</span>
           </article>
+          <article>
+            <strong>{VGI_MODEL_VERSION}</strong>
+            <span>AI Model</span>
+          </article>
         </div>
       </header>
 
@@ -1227,6 +1369,7 @@ function App() {
         <span className={`session-chip ${psxSession.phase}`}>
           {psxSession.phaseLabel} · {psxSession.nextEventLabel} {formatCountdown(psxSession.nextEventInMinutes)}
         </span>
+        <span>Feed health: {dataHealth.feedStatus} {dataHealth.latencySec !== null ? `· ${Math.round(dataHealth.latencySec)}s latency` : ''}</span>
         <button type="button" onClick={toggleBeat}>{beatOn ? 'Stop Slow Beat' : 'Play Slow Beat'}</button>
         <span>{beatOn ? `Background beat running · ${beatBpm} BPM` : 'Background beat is off'}</span>
         <input
@@ -1381,6 +1524,48 @@ function App() {
           </p>
         </article>
 
+        <article className="card watchlist-card">
+          <h2>AI Watchlist & Alert Center</h2>
+          <div className="watch-controls">
+            <input
+              placeholder="Add symbol (e.g. HBL)"
+              value={watchInput}
+              onChange={(e) => setWatchInput(e.target.value.toUpperCase())}
+            />
+            <button type="button" onClick={() => {
+              const msg = addWatchSymbol(watchInput)
+              setMessages((prev) => [...prev, { role: 'assistant', text: msg }])
+              setWatchInput('')
+            }}>
+              Add
+            </button>
+            <label className="threshold-inline">
+              Alert %
+              <input
+                type="number"
+                min={0.5}
+                max={15}
+                step={0.1}
+                value={alertThreshold}
+                onChange={(e) => setAlertThreshold(Math.min(15, Math.max(0.5, Number(e.target.value) || DEFAULT_ALERT_THRESHOLD)))}
+              />
+            </label>
+          </div>
+          <ul className="watch-list">
+            {(watchlistRows.length ? watchlistRows : [{ symbol: 'No symbols', price: 0, change: 0, volume: 0 }]).map((row) => (
+              <li key={row.symbol}>
+                <strong>{row.symbol}</strong>
+                <span>{row.price ? row.price.toFixed(2) : '-'}</span>
+                <span className={row.change >= 0 ? 'up' : 'down'}>{row.price ? `${row.change.toFixed(2)}%` : '-'}</span>
+                {row.price ? <button type="button" onClick={() => removeWatchSymbol(row.symbol)}>Remove</button> : <span>-</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="hint">
+            {watchAlerts.length ? watchAlerts.slice(0, 3).join(' | ') : 'No watchlist alerts currently active.'}
+          </p>
+        </article>
+
         <article className="card user-analytics">
           <h2>User Analytics</h2>
           <div className="ai-meters">
@@ -1441,8 +1626,35 @@ function App() {
         </article>
 
         <article className="card ai-lab-card">
-          <h2>AI Playbooks</h2>
-          <p>One-tap suggestions for rebalancing, risk hedging, and swing execution.</p>
+          <h2>AI Quant Execution Lab</h2>
+          <p>Adaptive sizing engine based on regime, volatility, and risk budget.</p>
+          <div className="quant-controls">
+            <label>
+              Strategy
+              <select value={strategyMode} onChange={(e) => setStrategyMode(e.target.value as StrategyMode)}>
+                <option value="scalp">Scalp</option>
+                <option value="swing">Swing</option>
+                <option value="position">Position</option>
+              </select>
+            </label>
+            <label>
+              Risk Budget %
+              <input
+                type="number"
+                min={0.5}
+                max={10}
+                step={0.1}
+                value={riskBudgetPct}
+                onChange={(e) => setRiskBudgetPct(Math.min(10, Math.max(0.5, Number(e.target.value) || 2)))}
+              />
+            </label>
+          </div>
+          <div className="quant-kpis">
+            <span>Capital at risk: PKR {formatMoney(quantSizing.capitalAtRisk)}</span>
+            <span>Volatility factor: {quantSizing.volAdj.toFixed(2)}x</span>
+            <span>Suggested exposure: PKR {formatMoney(quantSizing.suggestedExposure)}</span>
+            <span>Suggested qty ({tradeSymbol.toUpperCase()}): {quantSizing.suggestedQty}</span>
+          </div>
           <div className="playbook-actions">
             <button type="button" onClick={() => runAiPlaybook('rebalance')}>Run Rebalancer</button>
             <button type="button" onClick={() => runAiPlaybook('hedge')}>Run Hedge Plan</button>
@@ -1572,7 +1784,7 @@ function App() {
 
         <article className="card chatbot">
           <h2>AI Query Assistant</h2>
-          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, taxonomy, anomalies, session, vgi, date, kse, news, beat on/off, or calc 100000 120 136</p>
+          <p>Use: help, ticker, compare HBL UBL, gainers, losers, portfolio, sector bank, forecast, risk, taxonomy, anomalies, session, vgi, watch add HBL, watch remove HBL, watchlist, alerts, health, date, kse, news, beat on/off, or calc 100000 120 136</p>
           <div className="chatbox">
             {messages.slice(-10).map((m, i) => (
               <div key={`${m.role}-${i}`} className={`msg ${m.role}`}>
@@ -1603,7 +1815,7 @@ function App() {
         generatedAt={`${sessionDateLabel} ${sessionTimeLabel}`}
       />
 
-      <p className="owner-note">Built for Mohammad Arqam Javed · {APP_NAME}</p>
+      <p className="owner-note">Built for Mohammad Arqam Javed · {APP_NAME} · {VGI_MODEL_VERSION}</p>
     </main>
   )
 }
